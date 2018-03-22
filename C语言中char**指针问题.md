@@ -1,4 +1,4 @@
-# CTP-API项目发生的问题
+# C语言中char**指针问题
 
 解决问题：char\[100\]\[7\]和char**指针的转换问题
 
@@ -6,7 +6,7 @@
 >
 > Date：18-3-12
 
-## 关于char\[x\]\[y\]和char\*\*(char\\[\]\[\])
+## 关于char\[x\]\[y\]和char\*\*(char\[\]\[\])
 
 char\[x\]\[y\]虽然也是char\*\*指针，但是实际上，和真正的char\*\*指针完全不同，具体如下：
 
@@ -74,7 +74,6 @@ b g l q v
 c h m r w
 d i n s x
 e j o t y
-
 ~~~
 
 通过GDB查看char\[5\]\[5\]的内存结构：
@@ -108,3 +107,38 @@ char\*\*是真正的二维数组，其中储存一定数量的char\*指针，每
 因此，将char\[5\]\[5\]强制转换成char**，就会产生错误。
 
 **PS：char\[5\]\[5\]与其说是指针，更不如说是一种数据类型，这种类型也是c数组处理快的基础。**
+
+## 关于char[x]和char*
+
+大部分情况下并没有任何区别，但是在sizeof的情况下，拥有区别。下面是简单的测试程序：
+
+~~~c++
+#include <iostream>
+#include <map>
+#include <string>
+#include <unistd.h>
+#include <stdlib.h>
+using namespace std;
+
+int main()
+{
+    char a[20] = "123";
+    char *b = new char[20];
+    strcpy(b, "123");
+    int *c;
+    cout << sizeof(a) << endl;
+    cout << sizeof(b) << endl;
+    cout << sizeof(c) << endl;
+}
+~~~
+
+结果如下：
+
+~~~shell
+huziangdeMacBook-Pro:test huziang$ ./test
+20
+8
+8
+~~~
+
+char[x]中，sizeof得到的结果就是20，而sizeof一个char*指针的结果仅仅是4(或8，按计算机体系结构决定)
