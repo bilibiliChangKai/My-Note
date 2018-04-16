@@ -233,6 +233,7 @@ public:
 };
 
 int main() {
+    A *a = (A*)(new B());
     B *b = (B*)(new A());
     b->funcA();
     b->funcB();
