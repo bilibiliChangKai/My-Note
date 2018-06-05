@@ -57,3 +57,29 @@
   1. 块生产者发布他们的带宽，计算和状态的可用容量
   2. 用户根据自己拥有的的总代币比例，获得令牌。
   3. 用户根据令牌获得资源。
+
+## EOS工作模型：
+
+- 解决问题：降低EOS延迟
+
+- 实现原理：
+
+  ​	块中有同步机制，可以进行细分。
+
+  如图：
+
+  ```
+    Block
+  
+      Region
+  
+        Cycles (sequential)
+  
+          Shards (parallel)
+  
+            Transactions (sequential)
+  
+              Actions (sequential)
+  
+                Receiver and Notified Accounts (parallel)
+  ```
