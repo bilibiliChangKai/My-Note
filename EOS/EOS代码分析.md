@@ -403,11 +403,161 @@
 
     通过模版和模版实例化储存类型的一些特殊信息。使用方法如图所示。需要limits头文件。
 
-### 宏定义和函数模版进行结合
+### 发现的bug（疑似）：
+
+1. eos/libraries/fc/include/fc/io/enum_type.hpp：27行
+
+   ~~~c++
+   bool       operator>( EnumType i ) const { return value < i; }
+   ~~~
+
+   <应该改成>。
+
+2. eos/libraries/fc/include/fc/reflect/reflect.hpp：253行
+
+   ~~~c++
+   #define FC_REFLECT_FWD( TYPE ) \
+   namespace fc { \
+     template<> struct get_typename<TYPE>  { static const char* name()  { return BOOST_PP_STRINGIZE(TYPE);  } }; \
+   template<> struct reflector<TYPE> {\
+       typedef TYPE type; \
+       typedef fc::true_type is_defined; \
+       enum  member_count_enum {  \
+         local_member_count = BOOST_PP_SEQ_SIZE(MEMBERS), \
+         total_member_count = local_member_count BOOST_PP_SEQ_FOR_EACH( FC_REFLECT_BASE_MEMBER_COUNT, +, INHERITS )\
+       }; \
+       template<typename Visitor> static void visit( const Visitor& v ); \
+   }; }
+   ~~~
+
+   MEMBERS和INHERITS并没有传入，可能是上层模块调用存在。
+
+3. eos/libraries/fc/include/fc/interprocess/file_mapping.hpp：33行
+
+   ~~~c++
+   mapped_region( const file_mapping& fm, mode_t m, uint64_t start, size_t size );
+   ~~~
+
+   该函数可能会导致死循环。
+
+   **已解决：mapped_region是boost中的，不是同一个mapped_region。**
+
+## chain层：
+
+###chainbase内部结构：（chain的基础结构）
+
+- chainbase只有一个hpp文件和一个cpp文件。基本上，chain中的各种结构，都生成了multi_index，使用generic_index类。其中包含的重要内容如下：
+
+  - undo_state\<value_type\>类：
+
+    要求包含value_type::id_type。
+
+    类似于github，根据id_type和value_type来保存修改未提交的状态信息，用于以后恢复。
+
+  - generic_index\<MultiIndexType\>类：
+
+    其中，MultiIndexType类型用boost::multi_index实现。
+
+    要求包含MultiIndexType::value_type，MultiIndexType::value_type::id_type。（可能multi::index中都包含这些信息）
+
+    类似于github，通过deque\<undo_state\>实现恢复，但是已经提交（commit）的信息不能恢复。
+
+  - database类：
+
+    数据库类，内部包含读写锁，没太看懂= =。
+
+### chain内部结构：（未阅读完成）
+
+- PS：在chain内部分的类，带_object后缀的类都实现了chainbase::shared_multi_index_container，用于反射和使用generic_index类。
+- PS2：在chain部分的类，很多按照层层一对一继承的形式实现。（例如：transaction_header -> transaction -> signed_transaction）
+
+- 在这里包含block，region，cycles，shards，transaction，action的实现，他们之间的关系用vector表示：
+
+  - signed_block_summary包含vector\<region_summary\>
+  - region_summary包含vector\<cycle\>
+  - cycle是vector\<shard_summary\>的别名
+  - shared_summary包含vector\<transaction_receipt\>
+  - transaction（不是transaction_receipt）包含两个vector\<action\>，分别代表上下文无关actions和上下文有关actions
+
+  其中trace的关系和summary类似，详情请见block_trace.hpp。
+
+- name：EOS中action，scope，account，permission的唯一id，实际上是一个int_64的值。
+
+- types：其中包含一个枚举，枚举出包中的各个类型，帮助包中的类继承chainbase中的object类。
+
+- transaction：包含action的定义。包含signed_transaction和deferred_transaction两种交易方式，并且实现了可以将交易打包的packed_transaction类.
+
+- symbol：进行string和int_64的相互转换。
+
+- resource_limit：资源包含net，cpu和ram，其中ram不需要调度。实现resource_limits_manager进行资源调度。
+
+- producter_object：生产者类，包含调度方式，调度方式为顺序调用。
+
+- permission_object：许可类，如果满足许可，则返回optional\<fc::microseconds\>()，否则返回optional\<fc::microseconds\>(max_delay)，递归向父节点查找。
+
+- merkle：用于检验完整性。可参考博客：https://blog.csdn.net/wo541075754/article/details/54632929
+
+### 我个人认为的闪光点和学到的知识：
+
+1. boost::core::demangle()：
+
+   ~~~c++
+   #include <boost/core/demangle.hpp>
+   #include <typeinfo>
+   #include <iostream>
+   
+   template<class T> struct X
+   {
+   };
+   
+   int main()
+   {
+       char const * name = typeid( X<int> ).name();
+   
+       std::cout << name << std::endl; // prints 1XIiE
+       std::cout << boost::core::demangle( name ) << std::endl; // prints X<int>
+   }
+   ~~~
+
+   用于转义typeid生成的字符串。
+
+2. 使用map保存修改和删除的id和value，使用set保存新建的id：
+
+   ~~~c++
+   template< typename value_type >
+   class undo_state
+   {
+     public:
+        typedef typename value_type::id_type                      id_type;
+        typedef allocator< std::pair<const id_type, value_type> > id_value_allocator_type;
+        typedef allocator< id_type >                              id_allocator_type;
+   
+        template<typename T>
+        undo_state( allocator<T> al )
+        :old_values( id_value_allocator_type( al.get_segment_manager() ) ),
+         removed_values( id_value_allocator_type( al.get_segment_manager() ) ),
+         new_ids( id_allocator_type( al.get_segment_manager() ) ){}
+   
+        typedef boost::interprocess::map< id_type, value_type, std::less<id_type>, id_value_allocator_type >  id_value_type_map;
+        typedef boost::interprocess::set< id_type, std::less<id_type>, id_allocator_type >                    id_type_set;
+   
+        id_value_type_map            old_values;
+        id_value_type_map            removed_values;
+        id_type_set                  new_ids;
+        id_type                      old_next_id = 0;
+        int64_t                      revision = 0;
+   };
+   ~~~
+
+   由于修改和删除需要保存之前的状态，而新建不需要，因此修改和保存操作需要保存id和value，新建操作只需要保存id。
+
+   由于恢复的时候，可以先从修改和删除map中去除新建set中包含的id，使用map可以加快查询速度。
+
+##宏定义和函数模版进行结合
 
 在整个项目中，最让我惊叹的就是宏定义和函数模版（模版特例化）进行结合，在此单独拉出来讲解。
 
-#### BOOST中的宏定义
+###BOOST中的宏定义
 
 - BOOST_PP_STRINGIZE(elem)
 
@@ -415,10 +565,10 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   BOOST_PP_STRINGIZE(abc)  // convert to "abc"
   BOOST_PP_STRINGIZE(123 321)  // convert to "123 321"
-  ~~~
+  ```
 
 - BOOST_PP_CAT(a, b)
 
@@ -426,10 +576,10 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   BOOST_PP_CAT(a, b)  // convert to ab
   BOOST_PP_CAT(123, 321) // convert to 123321 
-  ~~~
+  ```
 
 - BOOST_PP_SEQ_FOR_EACH(macro, data, seq)
 
@@ -439,15 +589,16 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   #define MULTI(r, data, elem) +(data * elem)
   int ab = 0 BOOST_PP_SEQ_FOR_EACH(MULTI, 1.1, (2)(3)(4)(5));
   // convert to 
   // int ab = 0 +(1.1 * 2) +(1.1 * 3) +(1.1 * 4) +(1.1 * 5) ;
-  ~~~
+  ```
+
   这种方法可以自动生成case和if代码，用于枚举上有奇效：
 
-  ~~~c++
+  ```c++
   #define ENUM_CASE(r, type, elem) \
       case type::elem:             \
           return BOOST_PP_STRINGIZE(elem);
@@ -504,7 +655,7 @@
           return nullptr;
       }
   };
-  ~~~
+  ```
 
   这样就可以自动生成枚举代码了，非常方便。
 
@@ -514,11 +665,11 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   #define BOOST_UNORDERED_PRIMES (17ul)(29ul)(37ul)(53ul)
   BOOST_PP_SEQ_SIZE(BOOST_UNORDERED_PRIMES)
   // convert to 4
-  ~~~
+  ```
 
 - BOOST_PP_SEQ_ENUM(seq)
 
@@ -526,12 +677,12 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   #define SEQ (int)(float)(double)
   template<BOOST_PP_SEQ_ENUM(SEQ)>
   // convert to 
   // template<int, float, double>
-  ~~~
+  ```
 
 - BOOST_PP_SEQ_NIL(x)
 
@@ -539,12 +690,12 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   #define MULTI(r, data, elem) +(data * elem)
   int ab = 0 BOOST_PP_SEQ_FOR_EACH(MULTI, 1.1, BOOST_PP_SEQ_NIL);
   // convert to 
   // int ab = 0 ;
-  ~~~
+  ```
 
 - BOOST_PP_REPEAT(count, macro, data)
 
@@ -554,7 +705,7 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   #define DECL(z, n, text) text##n = n;
   BOOST_PP_REPEAT(5, DECL, int x)
   // convert to
@@ -563,7 +714,7 @@
   int x2 = 2;
   int x3 = 3;
   int x4 = 4;
-  ~~~
+  ```
 
   可以生成多个变量。
 
@@ -579,7 +730,7 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   template <BOOST_PP_ENUM_PARAMS_WITH_A_DEFAULT(3, typename T, int)>
   struct Test
   {
@@ -595,9 +746,37 @@
     T1 t1;
     T2 t2;
   };
+  ```
+
+- BOOST_PP_OVERLOAD(prefix, ...) （PS：该宏在vscode测试时，不能正确被替换，原因未知）
+
+  参数：其中，prefix是参数固定的宏，后面根据参数数量计数，进行BOOST_PP_CAT。
+
+  ~~~c++
+  BOOST_PP_OVERLOAD(MACRO_, 1, 2)
+  // convert to
+  MACRO_2
   ~~~
 
-#### FC中的宏定义
+  作用：进行宏重载。
+
+  例子：
+
+  ~~~c++
+  #define MACRO_1(number) MACRO_2(number, 10)
+  #define MACRO_2(number1, number2) BOOST_PP_ADD(number1, number2)
+  
+  #define MACRO_ADD_NUMBERS(...)                                      \
+    BOOST_PP_CAT(BOOST_PP_OVERLOAD(MACRO_, __VA_ARGS__)(__VA_ARGS__), \
+                 BOOST_PP_EMPTY())
+  int a = MACRO_ADD_NUMBERS(5);
+  int b = MACRO_ADD_NUMBERS(3, 6);
+  // convert to
+  int a = 15;
+  int b = 9;
+  ~~~
+
+###FC中的宏定义
 
 **PS：先吐槽一下。FC中宏定义有一个写的不好的点是，内部的宏会使用外部的宏的参数，很容易搞混。**
 
@@ -607,7 +786,7 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   struct Mytext {
     void method1() {}
     int method2(int a) { return a; }
@@ -639,7 +818,7 @@
           v("method2", method2);
       }
   };
-  ~~~
+  ```
 
 - FC_REFLECT( TYPE, MEMBERS )：路径 -> eos/libraries/fc/include/fc/reflect/reflect.hpp
 
@@ -647,7 +826,7 @@
 
   例子：
 
-  ~~~c++
+  ```c++
   struct Test
   {
       int data1;
@@ -698,73 +877,14 @@
       }
   };
   } // namespace fc
-  ~~~
+  ```
 
   通过get_typename\<TYPE\>访问类中姓名，通过visit函数遍历类中成员，进行注册。（visitor的作用还未看懂）
 
-### 发现的bug（疑似）：
+###chain的宏定义：
 
-1. eos/libraries/fc/include/fc/io/enum_type.hpp：27行
+- OBJECT_CTOR(...)：路径 -> eos/libraries/chain/include/eosio/chain/types.hpp
 
-   ~~~c++
-   bool       operator>( EnumType i ) const { return value < i; }
-   ~~~
+  作用：声明类的构造函数。
 
-   <应该改成>。
-
-2. eos/libraries/fc/include/fc/reflect/reflect.hpp：253行
-
-   ~~~c++
-   #define FC_REFLECT_FWD( TYPE ) \
-   namespace fc { \
-     template<> struct get_typename<TYPE>  { static const char* name()  { return BOOST_PP_STRINGIZE(TYPE);  } }; \
-   template<> struct reflector<TYPE> {\
-       typedef TYPE type; \
-       typedef fc::true_type is_defined; \
-       enum  member_count_enum {  \
-         local_member_count = BOOST_PP_SEQ_SIZE(MEMBERS), \
-         total_member_count = local_member_count BOOST_PP_SEQ_FOR_EACH( FC_REFLECT_BASE_MEMBER_COUNT, +, INHERITS )\
-       }; \
-       template<typename Visitor> static void visit( const Visitor& v ); \
-   }; }
-   ~~~
-
-   MEMBERS和INHERITS并没有传入，可能是上层模块调用存在。
-
-3. eos/libraries/fc/include/fc/interprocess/file_mapping.hpp：33行
-
-   ~~~c++
-   mapped_region( const file_mapping& fm, mode_t m, uint64_t start, size_t size );
-   ~~~
-
-   该函数可能会导致死循环。
-
-   **已解决：mapped_region是boost中的，不是同一个mapped_region。**
-
-## chainbase：
-
-### 我个人认为的闪光点和学到的知识：
-
-1. boost::core::demangle()：
-
-   ~~~c++
-   #include <boost/core/demangle.hpp>
-   #include <typeinfo>
-   #include <iostream>
-   
-   template<class T> struct X
-   {
-   };
-   
-   int main()
-   {
-       char const * name = typeid( X<int> ).name();
-   
-       std::cout << name << std::endl; // prints 1XIiE
-       std::cout << boost::core::demangle( name ) << std::endl; // prints X<int>
-   }
-   ~~~
-
-   用于转义typeid生成的字符串。
-
-2. 
+  例子：内部BOOST_PP_OVERLOAD宏出现问题，暂不显示。

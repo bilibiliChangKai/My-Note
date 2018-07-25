@@ -51,3 +51,17 @@ $$
 \sum\limits_{i=1}^{l-1}k_{i}+1, \sum\limits_{i=1}^{l-1}k_{i}+2, \cdots , \sum\limits_{i=1}^{l-1}k_{i}+k_{l}
 $$
 
+## 复杂度
+
+$$
+\Omega \\
+O \\
+\Theta
+$$
+
+##平方根
+
+$$
+\sqrt[5]{p}
+$$
+
