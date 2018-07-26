@@ -1,6 +1,6 @@
 # chrome插件开发
 
-> Author: huzi<br>
+> Author: huzi(moustache)<br>
 > Date: 18-7-25 22:24
 
 ## 前言
