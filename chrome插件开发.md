@@ -371,8 +371,8 @@ chrome.devtools.panels.elements.createSidebarPane("Images", function(sidebar)
 | devtools js     | 只能访问 devtools、extension、runtime等部分API | 可以         | 可以       | 不可以   |
 
 这四类脚本可以分为两大类：
- - 属于chrome开发插件脚本：可以使用大部分chrome.api，但是不能访问原页面的background，popup。
- - 不属于chrome开发插件脚本：只能使用少部分chrome.api（devtools能使用chrome.devtools），但是可以访问原页面的context-script，injested-script，devtools。
+ - 属于chrome开发插件脚本：可以使用大部分chrome.api，但是不能访问原页面的background，popup，devtools（比较特殊）。
+ - 不属于chrome开发插件脚本：只能使用少部分chrome.api，但是可以访问原页面的context-script，injested-script。
  
 chrome各种脚本已经介绍完毕，接下来一个部分，将介绍脚本间的通讯。
 
@@ -380,7 +380,7 @@ chrome各种脚本已经介绍完毕，接下来一个部分，将介绍脚本�
 
 四类脚本中的某些部分可以通过api或者DOM树直接调用，本章只讲需要间接调用的部分。
 
-### 3.1 content-script和injested-script通讯
+### 3.1 原脚本间（content-script和injested-script）通讯
 
 通过window.postMessage通讯，可双向通讯。示例：
 
@@ -413,9 +413,11 @@ function sendMessageToContentScriptByPostMessage(data)
 }
 ~~~
 
-### 3.2 content-script和background/popup通讯
+### 3.2 原脚本（content-script/injested-script）和chrome脚本间（background/popup/devtools）通讯
 
-通过chrome.runtime.sendMessge或者chrome.runtime.connect（长链接）通讯（也可使用tab），可双向通讯。示例：
+通过chrome.runtime.sendMessge或者chrome.runtime.connect（长链接）通讯，可双向通讯。示例：
+
+PS：可以使用chrome.tabs，但只能单向（chrome脚本 -> 原脚本）。
 
 content-script
 ~~~js
@@ -439,9 +441,11 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse)
 });
 ~~~
 
-### 3.3 background/popup和devtools通讯
+### 3.3 chrome脚本间（background/popup和devtools）通讯
 
-通过chrome.extension.sendMessage或者chrome.extension.connect（长链接）通讯（也可使用runtime），可双向通讯。示例：
+通过chrome.extension.sendMessage或者chrome.extension.connect（长链接）通讯，可双向通讯。示例：
+
+PS：可以使用chrome.runtime.sendMessage，可以双向。
 
 background
 ~~~js
@@ -472,6 +476,14 @@ PS2：本表中，devtools可以直接访问injected-script，但是反过来不
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | injected-script | - | ~<br> (window.postMessage) | - | - | - |
 | content-script  | ~<br> (window.postMessage) | - | ~<br> (chrome.runtime.sendMessage) | ~<br> (chrome.runtime.sendMessage) | - |
-| popup-js        | - | ~<br> (chrome.tabs.sendMessage) | - | *<br> (chrome.extension.getBackgroundPage()) | ~<br> (chrome.extension.sendMessage) |
-| background-js   | - | ~<br> (chrome.tabs.sendMessage) | *<br> (chrome.extension.getViews) | - | ~<br> (chrome.extension.sendMessage) |
-| devtools-js     | *<br> (chrome.devtools. inspectedWindow.eval) | - | ~<br> (chrome.runtime.sendMessage) | ~<br> (chrome.runtime.sendMessage) | - |
+| popup-js        | - | ~<br> (chrome.runtime.sendMessage) | - | *<br> (chrome.extension.getBackgroundPage()) | ~<br> (chrome.extension.sendMessage) |
+| background-js   | - | ~<br> (chrome.runtime.sendMessage) | *<br> (chrome.extension.getViews) | - | ~<br> (chrome.extension.sendMessage) |
+| devtools-js     | *<br> (chrome.devtools. inspectedWindow.eval) | - | ~<br> (chrome.extension.sendMessage) | ~<br> (chrome.extension.sendMessage) | - |
+
+四句话总结：
+
+ 1. chrome脚本间通讯用chrome.extension
+ 2. 原脚本间通讯用window
+ 3. chrome.runtime是共享单车，大家都能用
+ 4. chrome脚本 -> 原脚本轻而易举（基本都有直接调用方法）<br>
+ 	原脚本 -> chrome脚本难如登天（基本只能用间接方法）
