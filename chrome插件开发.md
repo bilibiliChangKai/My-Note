@@ -17,9 +17,19 @@
  
  - https://github.com/sxei/chrome-plugin-demo/tree/master/demo
 
-## Demo介绍
+如何在chrome中添加该插件？
 
-Demo的文件夹结构如下：
+先进入chrome插件开发页。
+
+![](photo/使用1.png)
+
+点击"加载已压缩的扩展程序按钮"，选择demo文件夹即可。
+
+![](photo/使用2.png)
+
+## demo介绍
+
+demo的文件夹结构如下：
 
 ~~~bash
 .
@@ -57,8 +67,8 @@ Demo的文件夹结构如下：
  - manifest.json：这个文件是核心入口文件，其他文件都是由这个文件为基础。
  - css/img/js：存放资源，脚本。
  - 其他html：manifest.json中的扩展。
- 
- 总结：chrome开发没有严格的项目结构要求，只需要本目录有manifest.json即可。
+
+总结：chrome开发没有严格的项目结构要求，只需要本目录有manifest.json即可。
 
 ## chrome插件开发核心
 
