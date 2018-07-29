@@ -14,12 +14,12 @@
 
 
 使用Demo来源如下：
- 
+
  - https://github.com/sxei/chrome-plugin-demo/tree/master/demo
 
-如何在chrome中添加该插件？
+如何在chrome中添加该插件？
 
-先进入chrome插件开发页。
+先进入chrome插件开发页。
 
 ![](photo/使用1.png)
 
@@ -383,7 +383,7 @@ chrome.devtools.panels.elements.createSidebarPane("Images", function(sidebar)
 这四类脚本可以分为两大类：
  - 属于chrome开发插件脚本：可以使用大部分chrome.api，但是不能访问原页面的background，popup，devtools（比较特殊）。
  - 不属于chrome开发插件脚本：只能使用少部分chrome.api，但是可以访问原页面的context-script，injested-script。
- 
+
 chrome各种脚本已经介绍完毕，接下来一个部分，将介绍脚本间的通讯。
 
 ## 3. 各类脚本之间的消息通讯
@@ -496,4 +496,4 @@ PS2：本表中，devtools可以直接访问injected-script，但是反过来不
  2. 原脚本间通讯用window
  3. chrome.runtime是共享单车，大家都能用
  4. chrome脚本 -> 原脚本轻而易举（基本都有直接调用方法）<br>
- 	原脚本 -> chrome脚本难如登天（基本只能用间接方法）
+		原脚本 -> chrome脚本难如登天（基本只能用间接方法）
