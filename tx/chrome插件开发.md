@@ -17,7 +17,7 @@
 
  - https://github.com/sxei/chrome-plugin-demo/tree/master/demo
 
-如何在chrome中添加该插件？
+### 如何在chrome中添加该插件？
 
 先进入chrome插件开发页。
 
@@ -423,13 +423,16 @@ function sendMessageToContentScriptByPostMessage(data)
 }
 ~~~
 
-### 3.2 原脚本（content-script/injested-script）和chrome脚本间（background/popup/devtools）通讯
+### 3.2 原脚本（content-script）和chrome脚本间（background/popup/devtools）通讯
 
 通过chrome.runtime.sendMessge或者chrome.runtime.connect（长链接）通讯，可双向通讯。示例：
 
 PS：可以使用chrome.tabs，但只能单向（chrome脚本 -> 原脚本）。
 
 content-script
+
+（PS：injected-script和background无法直接通过这种方式通讯）
+
 ~~~js
 // 主动发送消息给后台
 // 要演示此功能，请打开控制台主动执行sendMessageToBackground()
@@ -482,7 +485,7 @@ PS：`-`表示不存在或者无意义，或者待验证，`*`代表直接通讯
 
 PS2：本表中，devtools可以直接访问injected-script，但是反过来不行。
 
-| | injected-script | content-script | popup-js | background-js | devtools |
+|  | injected-script | content-script | popup-js | background-js | devtools-js |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | injected-script | - | ~<br> (window.postMessage) | - | - | - |
 | content-script  | ~<br> (window.postMessage) | - | ~<br> (chrome.runtime.sendMessage) | ~<br> (chrome.runtime.sendMessage) | - |
@@ -494,6 +497,6 @@ PS2：本表中，devtools可以直接访问injected-script，但是反过来不
 
  1. chrome脚本间通讯用chrome.extension
  2. 原脚本间通讯用window
- 3. chrome.runtime是共享单车，大家都能用
+ 3. chrome.runtime是共享单车，大家都能用（injected-script已经退群）
  4. chrome脚本 -> 原脚本轻而易举（基本都有直接调用方法）<br>
 		原脚本 -> chrome脚本难如登天（基本只能用间接方法）
