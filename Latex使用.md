@@ -65,16 +65,23 @@ $$
 \sqrt[5]{p}
 $$
 
-## 向量
+## 向量点乘，叉乘
 
 $$
-\vec{a}
+\vec{a} \cdot \vec{b} \\
+\vec{a} \times \vec{b}
 $$
 
 ## 不等于号
 
 $$
 \neq
+$$
+
+## hat
+
+$$
+\hat{i} + \hat{j} + \hat{k}
 $$
 
 
