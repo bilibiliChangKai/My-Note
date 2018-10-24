@@ -153,7 +153,7 @@ struct C : public A, public B {
 void (A::*pafoo)() = &A::foo;   // ptr: 1, adj: 0
 void (B::*pbbar)() = &B::bar;   // ptr: 1, adj: 0
 void (C::*pcfoo)() = &C::foo;   // ptr: 1, adj: 0
-void (C::*pcbar)() = &C::bar;   // ptr: 1, adj: 32
+void (C::*pcbar)() = &C::bar;   // ptr: 1, adj: 8
 void (C::*pcquz)() = &C::quz;   // ptr: 9, adj: 0
 void (C::*pcact)() = &C::act;   
 
